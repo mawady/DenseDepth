@@ -5,41 +5,45 @@ from PIL import Image
 from zipfile import ZipFile
 from tensorflow.keras.utils import Sequence
 from augment import BasicPolicy
+from io import BytesIO
 
 def extract_zip(input_zip):
     input_zip=ZipFile(input_zip)
-    return {name: input_zip.read(name) for name in input_zip.namelist()}
+    # return {name: input_zip.read(name) for name in input_zip.namelist()}
+    return input_zip, {name: name for name in input_zip.namelist()}
 
 def nyu_resize(img, resolution=480, padding=6):
     from skimage.transform import resize
     return resize(img, (resolution, int(resolution*4/3)), preserve_range=True, mode='reflect', anti_aliasing=True )
 
 def get_nyu_data(batch_size, nyu_data_zipfile='CSVdata.zip'):
-    data = extract_zip(nyu_data_zipfile)
-
-    nyu2_train = list((row.split(',') for row in (data['data/trainData.csv']).decode("utf-8").split('\n') if len(row) > 0))
-    nyu2_test = list((row.split(',') for row in (data['data/valData.csv']).decode("utf-8").split('\n') if len(row) > 0))
+    print("Extracting zip file")
+    input_zip, data = extract_zip(nyu_data_zipfile)
+    # print(data)
+    nyu2_train = list((row.split(',') for row in (input_zip.read(data['data/nyu2_train.csv'])).decode("utf-8").split('\n') if len(row) > 0))
+    nyu2_test = list((row.split(',') for row in (input_zip.read(data['data/nyu2_test.csv'])).decode("utf-8").split('\n') if len(row) > 0))
 
     shape_rgb = (batch_size, 480, 640, 3)
     shape_depth = (batch_size, 240, 320, 1)
 
     # Helpful for testing...
-    if False:
-        nyu2_train = nyu2_train[:10]
+    if True:
+        nyu2_train = nyu2_train[:100]
         nyu2_test = nyu2_test[:10]
 
-    return data, nyu2_train, nyu2_test, shape_rgb, shape_depth
+    return input_zip, data, nyu2_train, nyu2_test, shape_rgb, shape_depth
 
 def get_nyu_train_test_data(batch_size):
-    data, nyu2_train, nyu2_test, shape_rgb, shape_depth = get_nyu_data(batch_size)
+    input_zip, data, nyu2_train, nyu2_test, shape_rgb, shape_depth = get_nyu_data(batch_size)
 
-    train_generator = NYU_BasicAugmentRGBSequence(data, nyu2_train, batch_size=batch_size, shape_rgb=shape_rgb, shape_depth=shape_depth)
-    test_generator = NYU_BasicRGBSequence(data, nyu2_test, batch_size=batch_size, shape_rgb=shape_rgb, shape_depth=shape_depth)
+    train_generator = NYU_BasicAugmentRGBSequence(input_zip, data, nyu2_train, batch_size=batch_size, shape_rgb=shape_rgb, shape_depth=shape_depth)
+    test_generator = NYU_BasicRGBSequence(input_zip, data, nyu2_test, batch_size=batch_size, shape_rgb=shape_rgb, shape_depth=shape_depth)
 
     return train_generator, test_generator
 
 class NYU_BasicAugmentRGBSequence(Sequence):
-    def __init__(self, data, dataset, batch_size, shape_rgb, shape_depth, is_flip=False, is_addnoise=False, is_erase=False):
+    def __init__(self, input_zip, data, dataset, batch_size, shape_rgb, shape_depth, is_flip=False, is_addnoise=False, is_erase=False):
+        self.input_zip = input_zip
         self.data = data
         self.dataset = dataset
         self.policy = BasicPolicy( color_change_ratio=0.50, mirror_ratio=0.50, flip_ratio=0.0 if not is_flip else 0.2, 
@@ -66,8 +70,8 @@ class NYU_BasicAugmentRGBSequence(Sequence):
 
             sample = self.dataset[index]
 
-            x = np.clip(np.asarray(Image.open( "../"+sample[0] )).reshape(480,640,3)/255,0,1)
-            y = np.clip(np.asarray(Image.open( "../"+sample[1] )).reshape(480,640,1)/255*self.maxDepth,0,self.maxDepth)
+            x = np.clip(np.asarray(Image.open(BytesIO(self.input_zip.read(sample[0])))).reshape(480,640,3)/255,0,1)
+            y = np.clip(np.asarray(Image.open( BytesIO(self.input_zip.read(sample[1])))).reshape(480,640,1)/255*self.maxDepth,0,self.maxDepth)
             y = DepthNorm(y, maxDepth=self.maxDepth)
 
             batch_x[i] = nyu_resize(x, 480)
@@ -82,7 +86,8 @@ class NYU_BasicAugmentRGBSequence(Sequence):
         return batch_x, batch_y
 
 class NYU_BasicRGBSequence(Sequence):
-    def __init__(self, data, dataset, batch_size,shape_rgb, shape_depth):
+    def __init__(self, input_zip, data, dataset, batch_size,shape_rgb, shape_depth):
+        self.input_zip = input_zip
         self.data = data
         self.dataset = dataset
         self.batch_size = batch_size
@@ -101,8 +106,8 @@ class NYU_BasicRGBSequence(Sequence):
 
             sample = self.dataset[index]
 
-            x = np.clip(np.asarray(Image.open( "../"+sample[0])).reshape(480,640,3)/255,0,1)
-            y = np.asarray(Image.open( "../"+sample[1]), dtype=np.float32).reshape(480,640,1).copy().astype(float) / 10.0
+            x = np.clip(np.asarray(Image.open(BytesIO(self.input_zip.read(sample[0])))).reshape(480,640,3)/255,0,1)
+            y = np.asarray(Image.open(BytesIO(self.input_zip.read(sample[1]))), dtype=np.float32).reshape(480,640,1).copy().astype(float) / 10.0
             y = DepthNorm(y, maxDepth=self.maxDepth)
 
             batch_x[i] = nyu_resize(x, 480)
