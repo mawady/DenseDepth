@@ -16,7 +16,7 @@ def nyu_resize(img, resolution=480, padding=6):
     from skimage.transform import resize
     return resize(img, (resolution, int(resolution*4/3)), preserve_range=True, mode='reflect', anti_aliasing=True )
 
-def get_nyu_data(batch_size, nyu_data_zipfile='CSVdata.zip'):
+def get_nyu_data(batch_size, nyu_data_zipfile='nyu_data.zip'):
     print("Extracting zip file")
     input_zip, data = extract_zip(nyu_data_zipfile)
     # print(data)
