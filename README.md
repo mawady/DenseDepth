@@ -1,4 +1,12 @@
-## [High Quality Monocular Depth Estimation via Transfer Learning (arXiv 2018)](https://arxiv.org/abs/1812.11941)
+# [High Quality Monocular Depth Estimation via Transfer Learning (arXiv 2018)](https://arxiv.org/abs/1812.11941)
+
+## Updates from Mohamed Elawady
+- Fix memory issue while zip loading
+- Define `requirements.txt` for libraries to avoid errors in different releases
+- Build Colab link for training: https://colab.research.google.com/drive/1LzY2FZiAy2wz57aZilfmWh3XUk_hqe4a?usp=sharing
+---
+## General from original authors
+
 [Ibraheem Alhashim](https://ialhashim.github.io/) and Peter Wonka
 
 **[Update] Our latest method with better performance can be found here [AdaBins](https://github.com/shariqfarooq123/AdaBins).**
